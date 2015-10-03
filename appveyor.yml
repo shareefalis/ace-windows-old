@@ -10,7 +10,7 @@ build_script:
 - msbuild VATRP.sln /p:Configuration="Release"  /p:Targets="Build"
 # /p:BuildInParallel=true /m
 - set PATH="C:\Program Files (x86)\Inno Setup 5";%PATH%
-- dir libantlr3c.dll /s
+- dir /s
 - Call iscc Setup\vatrp_setup.iss
 artifacts:
 - path: Setup\Out\*.exe
