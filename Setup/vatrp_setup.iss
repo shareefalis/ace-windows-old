@@ -46,7 +46,7 @@ Source: ..\VATRP.App\bin\Release\avutil-51.dll; DestDir: {app}; Flags: ignorever
 Source: ..\VATRP.App\bin\Release\HockeyApp.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\VATRP.App\bin\Release\HockeyAppPCL.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\VATRP.App\bin\Release\intl.dll; DestDir: {app}; Flags: ignoreversion
-Source: ..\VATRP.App\bin\Release\libantlr3c.dll; DestDir: {app}; Flags: ignoreversion
+Source: ..\VATRP.App\bin\Release\antlr3c.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\VATRP.App\bin\Release\libbellesip-0.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\VATRP.App\bin\Release\libbzrtp-0.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\VATRP.App\bin\Release\libgcc_s_dw2-1.dll; DestDir: {app}; Flags: ignoreversion
