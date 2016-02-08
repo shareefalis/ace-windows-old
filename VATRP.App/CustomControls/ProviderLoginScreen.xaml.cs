@@ -14,6 +14,7 @@ using System.Windows.Shapes;
 using com.vtcsecure.ace.windows.Services;
 using VATRP.Core.Model;
 using com.vtcsecure.ace.windows.Utilities;
+using System.Collections.ObjectModel;
 
 namespace com.vtcsecure.ace.windows.CustomControls
 {
@@ -23,8 +24,8 @@ namespace com.vtcsecure.ace.windows.CustomControls
     public partial class ProviderLoginScreen : UserControl
     {
 
-        #region Memebers
-        
+        #region Members
+        public ObservableCollection<VATRPServiceProvider> ProviderList { get; private set; }
         private readonly MainWindow _mainWnd;
         #endregion
 
@@ -32,7 +33,9 @@ namespace com.vtcsecure.ace.windows.CustomControls
         {
             _mainWnd = theMain;
             InitializeComponent();
+            ProviderList = new ObservableCollection<VATRPServiceProvider>();
             Initialize();
+            this.DataContext = this;
         }
 
         public void Initialize()
@@ -42,25 +45,21 @@ namespace com.vtcsecure.ace.windows.CustomControls
 
         public void InitializeToProvider(string providerName)
         {
-            string[] providerList = ServiceManager.Instance.ProviderService.GetProviderList();
-            ProviderComboBox.Items.Clear();
-            int indexToSelect = 0;
-            int currentIndex = 0;
-            foreach (string provider in providerList)
+            List<VATRPServiceProvider> serviceProviderList = ServiceManager.Instance.ProviderService.GetProviderListFullInfo();
+            // sort the list
+            serviceProviderList.Sort((a, b) =>  a.Label.CompareTo(b.Label));
+            ProviderList.Clear();
+            foreach (VATRPServiceProvider provider in serviceProviderList)
             {
-                ProviderComboBox.Items.Add(provider);
-                if (provider.StartsWith(providerName))
-                {
-                    indexToSelect = currentIndex;
-                }
-                currentIndex++;
+                if (provider.Address == "_nologo")
+                    continue;
+                ProviderList.Add(provider);
             }
-            ProviderComboBox.SelectedIndex = indexToSelect;
-            ProviderComboBox.SelectedItem = ProviderComboBox.Items[indexToSelect];
-            // VATRP1271 - TODO - add a check to ensure that this has not changed prior to doign anything further.
+            // VATRP1271 - TODO - add a check to ensure that this has not changed prior to doing anything further.
             VATRPServiceProvider serviceProvider = ServiceManager.Instance.ProviderService.FindProviderLooseSearch(providerName);
             if (serviceProvider != null)
             {
+                ProviderComboBox.SelectedItem = serviceProvider;
                 HostnameBox.Text = serviceProvider.Address;
             }
 
@@ -112,7 +111,6 @@ namespace com.vtcsecure.ace.windows.CustomControls
 
         private void LoginCmd_Click(object sender, RoutedEventArgs e)
         {
-            string providerName = (string)ProviderComboBox.SelectedItem;
             string userName = LoginBox.Text;
             if (string.IsNullOrWhiteSpace(userName))
             {
@@ -126,68 +124,113 @@ namespace com.vtcsecure.ace.windows.CustomControls
                 return;
             }
 
-            // VATRP1271 - TODO - add a check to ensure that this has not changed prior to doign anything further.
-            VATRPServiceProvider provider = ServiceManager.Instance.ProviderService.FindProvider(providerName);
-            if (provider != null)
+            //VATRPServiceProvider provider = (VATRPServiceProvider)ProviderComboBox.SelectedItem; 
+            //if (provider != null)
+            //{
+            //    HostnameBox.Text = provider.Address; //Don't change field value during login click
+            //}
+            var transportText = TransportComboBox.SelectedItem as TextBlock;
+            if (transportText.Text.ToLower() != "tls") //TLS login with autofig is currently failing so revert to old login logic for TLS
             {
-                HostnameBox.Text = provider.Address;
-            }
-            string address = HostnameBox.Text;
-            ACEConfig config = ConfigLookup.LookupConfig(address, userName, password);
-            if ((config == null) || (config.configStatus == ACEConfigStatusType.LOGIN_UNAUTHORIZED))
-            {
-                // login failed
-                MessageBox.Show("The login Failed. Please enter a valid user name and password.", "Valid Login Required");
-                return;
-            }
-            // VATRP-1271: to do - handle ACEConfigStatusType Appropriately. For the moment (during devel & debug) show the resulting message to the user.
-            if (config.configStatus != ACEConfigStatusType.LOGIN_SUCCEESSFUL)
-            {
-                // there was some sort of error - expose information to user for now. Once ready, log and handle. In some cases we will still want a specific message
-                string message;
-                switch (config.configStatus)
+                string address = HostnameBox.Text;
+                ACEConfig config = ConfigLookup.LookupConfig(address, userName, password);
+                if ((config == null) || (config.configStatus == ACEConfigStatusType.LOGIN_UNAUTHORIZED))
                 {
+                    // login failed
+                    MessageBox.Show("The login Failed. Please enter a valid user name and password.", "Valid Login Required");
+                    return;
+                }
+                // VATRP-1271: to do - handle ACEConfigStatusType Appropriately. For the moment (during devel & debug) show the resulting message to the user.
+                if (config.configStatus != ACEConfigStatusType.LOGIN_SUCCEESSFUL)
+                {
+                    // there was some sort of error - expose information to user for now. Once ready, log and handle. In some cases we will still want a specific message
+                    string message;
+                    switch (config.configStatus)
+                    {
                         // ToDo note : the text here is a little bit different for each message - enough to let the developer know what to look for
                         //   without being too much for the user. Once we have codes worked out we can use codes in our messages that will help
                         //   in customer support.
-                    case ACEConfigStatusType.CONNECTION_FAILED: message = "Unable to obtain configuration information from the server.";
-                        break;
-                    case ACEConfigStatusType.SRV_RECORD_NOT_FOUND: message = "The SRV Record was not found.";
-                        break;
-                    case ACEConfigStatusType.UNABLE_TO_PARSE : message = "Unable to parse the configuration information.";
-                        break;
-                    default:
-                        message = "An error occured while obtaining the configuration. Status Type=" + config.configStatus.ToString();
-                        break;
+                        case ACEConfigStatusType.CONNECTION_FAILED: message = "Unable to obtain configuration information from the server.";
+                            break;
+                        case ACEConfigStatusType.SRV_RECORD_NOT_FOUND: message = "The SRV Record was not found.";
+                            break;
+                        case ACEConfigStatusType.UNABLE_TO_PARSE: message = "Unable to parse the configuration information.";
+                            break;
+                        default:
+                            message = "An error occured while obtaining the configuration. Status Type=" + config.configStatus.ToString();
+                            break;
+                    }
+                    MessageBox.Show(message, "Error Obtaining Configuration Status");
+                    //return;  //Continue attempting manual registration if configuration failed
+                    Login_old();
                 }
-                MessageBox.Show(message, "Error Obtaining Configuration Status");
-                return;
-            }
-            // otherwise the login was valid, proceed
-            // 
-            if (string.IsNullOrEmpty(config.sip_auth_password) || string.IsNullOrEmpty(config.sip_auth_username))
-            {
-                config.sip_auth_username = userName;
-                config.sip_auth_password = password;
-            }
+                else
+                {
+                    // otherwise the login was valid, proceed
+                    // 
+                    if (string.IsNullOrEmpty(config.sip_auth_password) || string.IsNullOrEmpty(config.sip_auth_username))
+                    {
+                        config.sip_auth_username = userName;
+                        config.sip_auth_password = password;
+                    }
+                    //Allow user override of transport                     
+                    if (transportText != null && config.sip_register_transport.ToLower() != transportText.Text.ToLower())
+                    {
+                        config.sip_register_transport = transportText.Text;
+                    }
+                    //Allow user override of proxy port
+                    ushort port;
+                    if (ushort.TryParse(HostPortBox.Text, out port) && config.sip_register_port != port)
+                    {
+                        config.sip_register_port = port;
+                    }
 
-            var account = ServiceManager.Instance.AccountService.FindAccount(config.sip_auth_username, config.sip_register_domain);//, HostnameBox.Text);
-            if (account != null)
-            {
-                App.CurrentAccount = account;
+                    var account = ServiceManager.Instance.AccountService.FindAccount(config.sip_auth_username, config.sip_register_domain);//, HostnameBox.Text);
+                    if (account != null)
+                    {
+                        App.CurrentAccount = account;
+                    }
+                    else
+                    {
+                        ServiceManager.Instance.AccountService.AddAccount(App.CurrentAccount);
+                    }
+                    // VATRP-1899: This is a quick and dirty solution for POC. It will be funational, but not the end implementation we will want.
+                    //  This will ultimately be set by the configuration resources from Ace Connect.
+                    if (config.sip_auth_username.Equals("agent_1"))
+                    {
+                        config.user_is_agent = true;
+                    }
+                    else
+                    {
+                        config.user_is_agent = false;
+                    }
+                    config.UpdateVATRPAccountFromACEConfig(App.CurrentAccount);
+                    App.CurrentAccount.AutoLogin = this.AutoLoginBox.IsChecked ?? false;
+                    UpdateConfigServiceFromACEConfig(config);
+                    ServiceManager.Instance.ConfigurationService.Set(Configuration.ConfSection.GENERAL,
+                        Configuration.ConfEntry.ACCOUNT_IN_USE, App.CurrentAccount.AccountID);
+                    ServiceManager.Instance.AccountService.Save();
+                    ServiceManager.Instance.RegisterNewAccount(App.CurrentAccount.AccountID);
+
+                }
             }
             else
+            { Login_old(); }
+        }
+        private void UpdateConfigServiceFromACEConfig(ACEConfig config)
+        {
+            if (config != null)
             {
-                ServiceManager.Instance.AccountService.AddAccount(App.CurrentAccount);
+                ServiceManager.Instance.ConfigurationService.Set(Configuration.ConfSection.GENERAL,
+                    Configuration.ConfEntry.USE_RTT, config.enable_rtt);
             }
-            config.UpdateVATRPAccountFromACEConfig(App.CurrentAccount);
-            ServiceManager.Instance.ConfigurationService.Set(Configuration.ConfSection.GENERAL,
-                Configuration.ConfEntry.ACCOUNT_IN_USE, App.CurrentAccount.AccountID);
-            ServiceManager.Instance.AccountService.Save();
-            ServiceManager.Instance.RegisterNewAccount(App.CurrentAccount.AccountID);
+        }
+        private void LoginCmd_Click_old(object sender, RoutedEventArgs e)
+        {
+            Login_old();
         }
 
-        private void LoginCmd_Click_old(object sender, RoutedEventArgs e)
+        private void Login_old()
         {
             string username = LoginBox.Text;
             if (string.IsNullOrWhiteSpace(username))
@@ -283,9 +326,8 @@ namespace com.vtcsecure.ace.windows.CustomControls
 
         public void OnProviderChanged(object sender, SelectionChangedEventArgs args)
         {
-            string providerName = (string)ProviderComboBox.SelectedItem;
             // VATRP1271 - TODO - add a check to ensure that this has not changed prior to doign anything further.
-            VATRPServiceProvider provider = ServiceManager.Instance.ProviderService.FindProvider(providerName);
+            VATRPServiceProvider provider = (VATRPServiceProvider)ProviderComboBox.SelectedItem;//ServiceManager.Instance.ProviderService.FindProvider(providerName);
             if (provider != null)
             {
                 HostnameBox.Text = provider.Address;

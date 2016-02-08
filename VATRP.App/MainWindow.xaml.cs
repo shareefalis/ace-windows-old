@@ -54,6 +54,7 @@ namespace com.vtcsecure.ace.windows
         private readonly MainControllerViewModel _mainViewModel;
         private Size CombinedUICallViewSize = new Size(700, 700);
         private Point _lastWindowPosition;
+        private bool _playRegisterNotify = true;
         private readonly DispatcherTimer deferredHideTimer = new DispatcherTimer()
         {
             Interval = TimeSpan.FromMilliseconds(2000),
@@ -81,6 +82,7 @@ namespace com.vtcsecure.ace.windows
             _linphoneService.CallStateChangedEvent += OnCallStateChanged;
             _linphoneService.GlobalStateChangedEvent += OnGlobalStateChanged;
             ServiceManager.Instance.NewAccountRegisteredEvent += OnNewAccountRegistered;
+            ServiceManager.Instance.LinphoneCoreStartedEvent += OnLinphoneCoreStarted;
             InitializeComponent();
             DataContext = _mainViewModel;
             ctrlHistory.SetDataContext(_mainViewModel.HistoryModel);
@@ -482,6 +484,7 @@ namespace com.vtcsecure.ace.windows
             ctrlCall.RttToggled += OnRttToggled;
             ctrlCall.FullScreenOnToggled += OnFullScreenToggled;
             ctrlCall.SwitchHoldCallsRequested += OnSwitchHoldCallsRequested;
+            ctrlCall.VideoOnToggled += OnCameraSwitched;
 
             _callOverlayView.CallManagerView = _callView;
             ctrlHistory.MakeCallRequested += OnMakeCallRequested;
@@ -501,6 +504,7 @@ namespace com.vtcsecure.ace.windows
             //ctrlSettings.CallSettingsChangeClicked += OnSettingsChangeRequired;
 
             ctrlResource.CallResourceRequested += OnCallResourceRequested;
+            ctrlLocalContact.CallResourceRequested += OnCallResourceRequested;
 
             if ((App.CurrentAccount != null) && App.CurrentAccount.AutoLogin && App.CurrentAccount.Password.NotBlank())
             {
@@ -512,7 +516,7 @@ namespace com.vtcsecure.ace.windows
                     _mainViewModel.OfferServiceSelection = false;
                     _mainViewModel.IsAccountLogged = true;
                     _mainViewModel.ContactModel.VideoMailCount = App.CurrentAccount.VideoMailCount;
-                    // VATRP-1899: This is a quick and dirty solution for POC. It will be funational, but not the end implementation we will want.
+                    // VATRP-1899: This is a quick and dirty solution for POC. It will be functional, but not the end implementation we will want.
                     if (!App.CurrentAccount.UserNeedsAgentView)
                     {
                         OpenAnimated();
@@ -584,7 +588,7 @@ namespace com.vtcsecure.ace.windows
                 CombinedUICallViewSize.Height = szDimensions.Height;
                 this.SizeToContent = SizeToContent.WidthAndHeight;
                 WindowState = System.Windows.WindowState.Normal;
-                this.ResizeMode = System.Windows.ResizeMode.NoResize;
+                this.ResizeMode = System.Windows.ResizeMode.CanMinimize;
                 this.Left = _lastWindowPosition.X;
                 this.Top = _lastWindowPosition.Y;
                 this.CallViewBorder.BorderThickness = new Thickness(1, 0, 1, 0);
@@ -643,7 +647,17 @@ namespace com.vtcsecure.ace.windows
             ctrlCall.ctrlOverlay.NewCallAcceptWindowLeftMargin = topleftInScreen.X + (callViewDimensions.Width - ctrlCall.ctrlOverlay.NewCallAcceptOverlayWidth) / 2 + offset;
             ctrlCall.ctrlOverlay.NewCallAcceptWindowTopMargin = topleftInScreen.Y + (ctrlCall.ActualHeight - ctrlCall.ctrlOverlay.NewCallAcceptOverlayHeight) / 2;
 
+            ctrlCall.ctrlOverlay.OnHoldOverlayWidth = 100;// (int)callViewDimensions.Width - 30;
+            ctrlCall.ctrlOverlay.OnHoldWindowLeftMargin = topleftInScreen.X + (callViewDimensions.Width - ctrlCall.ctrlOverlay.OnHoldOverlayWidth) / 2 + offset;
+            ctrlCall.ctrlOverlay.OnHoldWindowTopMargin = ctrlCall.ctrlOverlay.CallInfoOverlayHeight + ctrlCall.ctrlOverlay.CallInfoWindowTopMargin + 40;// topleftInScreen.Y + 40;
+
             ctrlCall.ctrlOverlay.Refresh();
+        }
+
+        private void OnCameraSwitched(bool switch_on)
+        {
+            if (_mainViewModel.ActiveCallModel != null && _mainViewModel.ActiveCallModel.ActiveCall != null)
+                ServiceManager.Instance.LinphoneService.SendCameraSwtichAsInfo(_mainViewModel.ActiveCallModel.ActiveCall.NativeCallPtr, switch_on);
         }
 
         private void OnRttToggled(bool switch_on)
